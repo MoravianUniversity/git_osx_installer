@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Notarize the package
+
+# Start notarization process and wait
+read -p "Username (e.g. username@mail.com): " USERNAME
+read -p "Team ID (e.g. ABCDEFGH89): " TEAM_ID
+read -p "App-Specific Password (e.g. abcd-efgh-ijkl-mnop): " PASSWORD
+PKG="$(ls git-*.pkg | tail -n1)"
+if [ ! -f "$PKG" ]; then echo "Package not found"; exit 1; fi
+xcrun notarytool submit --apple-id "$USERNAME" --team-id "$TEAM_ID" --password "$PASSWORD" "$PKG" --wait
+
+if [ $? -ne 0 ]; then
+    echo "Notarization failed"
+    UUID="$(xcrun notarytool history --apple-id "$USERNAME" --team-id "$TEAM_ID" --password "$PASSWORD" | grep "id:" | head -1 | grep -o "[0-9a-z-]\+$")"
+    xcrun notarytool log --apple-id "$USERNAME" --team-id "$TEAM_ID" --password "$PASSWORD" "$UUID"
+    exit 1
+fi
+
+# Staple the notarization to the package
+xcrun stapler staple "$PKG"
+
+# Validate the notarization
+xcrun stapler validate --verbose "$PKG"

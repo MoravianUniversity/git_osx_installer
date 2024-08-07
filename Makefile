@@ -141,6 +141,12 @@ $(BUILD_DIR)/osx-installed-bin: $(BUILD_DIR)/osx-staged-arm $(BUILD_DIR)/osx-sta
 	# recreate directory structure and add in all symlinks
 	cd "$(DESTDIR_arm)"; find . -type d -exec mkdir -p "$(DESTDIR)/{}" \;
 	cd "$(DESTDIR_arm)"; find . -type l -exec cp -fPR "{}" "$(DESTDIR)/{}" \;
+ifdef CERTIFICATE
+	# sign executables
+#	security unlock-keychain login.keychain  - unsure if necessary (or if it even works), instead using broad permissions in Keychain Access for now
+	cd "$(DESTDIR_arm)";   find . -type f -exec bash -c '[[ "$$(file -b "{}")" == "Mach-O 64-bit executable arm64" ]]' \;  -exec codesign --force --options runtime --sign "$(CERTIFICATE)" "{}" \;
+	cd "$(DESTDIR_intel)"; find . -type f -exec bash -c '[[ "$$(file -b "{}")" == "Mach-O 64-bit executable x86_64" ]]' \; -exec codesign --force --options runtime --sign "$(CERTIFICATE)" "{}" \;
+endif
 	# look at all other files: copy non-executables, merge executables
 	cd "$(DESTDIR_arm)"; find . -type f -exec bash -c '[[ "$$(file -b "{}")" == "Mach-O 64-bit executable arm64" ]]' \; -exec lipo -create -output "$(DESTDIR)/{}" "$(DESTDIR_intel)/{}" "$(DESTDIR_arm)/{}" \;
 	cd "$(DESTDIR_arm)"; find . -type f -exec bash -c '[[ "$$(file -b "{}")" != "Mach-O 64-bit executable arm64" ]]' \; -exec cp -f "$(DESTDIR_arm)/{}" "$(DESTDIR)/{}" \;
@@ -178,3 +184,7 @@ $(BUILD_DIR)/osx-installed: $(BUILD_DIR)/osx-installed-bin $(BUILD_DIR)/osx-inst
 
 git-$(VERSION).pkg: $(BUILD_DIR)/osx-installed
 	pkgbuild --identifier com.git.pkg --version $(VERSION) --root "$(DESTDIR)$(PREFIX)" --install-location "$(PREFIX)" $(COMP_PLIST) git-$(VERSION).pkg
+ifdef CERTIFICATE_INSTALLER
+	productsign --sign "$(CERTIFICATE_INSTALLER)" git-$(VERSION).pkg git-$(VERSION)-signed.pkg
+	mv git-$(VERSION)-signed.pkg git-$(VERSION).pkg
+endif
