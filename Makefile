@@ -15,6 +15,9 @@ LDFLAGS_intel := $(ARCH_FLAGS_intel)
 CFLAGS_arm := $(ARCH_FLAGS_arm)
 LDFLAGS_arm := $(ARCH_FLAGS_arm)
 
+CARGO_TARGET_intel := x86_64-apple-darwin
+CARGO_TARGET_arm := aarch64-apple-darwin
+
 PREFIX := /usr/local
 GIT_PREFIX := $(PREFIX)/git
 BUILD_DIR := build
@@ -31,8 +34,8 @@ COMP_PLIST :=
 endif
 
 SUBMAKE_base := "$(MAKE)" C_INCLUDE_PATH="$(C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(CPLUS_INCLUDE_PATH)" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" $(FLAGS) NO_GETTEXT=1 NO_DARWIN_PORTS=1 prefix="$(GIT_PREFIX)"
-SUBMAKE_arm := $(SUBMAKE_base) DESTDIR="$(DESTDIR_arm)" CFLAGS="$(CFLAGS_arm)" LDFLAGS="$(LDFLAGS_arm)"
-SUBMAKE_intel := $(SUBMAKE_base) DESTDIR="$(DESTDIR_intel)" CFLAGS="$(CFLAGS_intel)" LDFLAGS="$(LDFLAGS_intel)"
+SUBMAKE_arm := $(SUBMAKE_base) DESTDIR="$(DESTDIR_arm)" CFLAGS="$(CFLAGS_arm)" LDFLAGS="$(LDFLAGS_arm)" CARGO_BUILD_TARGET="$(CARGO_TARGET_arm)"
+SUBMAKE_intel := $(SUBMAKE_base) DESTDIR="$(DESTDIR_intel)" CFLAGS="$(CFLAGS_intel)" LDFLAGS="$(LDFLAGS_intel)" CARGO_BUILD_TARGET="$(CARGO_TARGET_intel)"
 
 XML_CATALOG_FILES := $(shell bin/find-file /usr/local/etc/xml/catalog /opt/homebrew/etc/xml/catalog)
 
