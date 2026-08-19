@@ -7,22 +7,15 @@ LD_LIBRARY_PATH := /usr/lib
 VERSION := $(shell bin/latest-git-version)
 DOWNLOAD_LOCATION := https://www.kernel.org/pub/software/scm/git
 
-ARCH_FLAGS_intel := -target x86_64-apple-macos10.12
-ARCH_FLAGS_arm := -target arm64-apple-macos11
+ARCH_FLAGS := -target arm64-apple-macos11
 
-CFLAGS_intel := $(ARCH_FLAGS_intel)
-LDFLAGS_intel := $(ARCH_FLAGS_intel)
-CFLAGS_arm := $(ARCH_FLAGS_arm)
-LDFLAGS_arm := $(ARCH_FLAGS_arm)
-
-CARGO_TARGET_intel := x86_64-apple-darwin
-CARGO_TARGET_arm := aarch64-apple-darwin
+CFLAGS := $(ARCH_FLAGS)
+LDFLAGS := $(ARCH_FLAGS)
 
 PREFIX := /usr/local
 GIT_PREFIX := $(PREFIX)/git
 BUILD_DIR := build
 DESTDIR_arm := $(PWD)/stage-arm/
-DESTDIR_intel := $(PWD)/stage-intel/
 DESTDIR := $(PWD)/stage/git-$(VERSION)
 
 ifdef INCLUDE_GUI
@@ -34,8 +27,7 @@ COMP_PLIST :=
 endif
 
 SUBMAKE_base := "$(MAKE)" C_INCLUDE_PATH="$(C_INCLUDE_PATH)" CPLUS_INCLUDE_PATH="$(CPLUS_INCLUDE_PATH)" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" $(FLAGS) NO_GETTEXT=1 NO_DARWIN_PORTS=1 prefix="$(GIT_PREFIX)"
-SUBMAKE_arm := $(SUBMAKE_base) DESTDIR="$(DESTDIR_arm)" CFLAGS="$(CFLAGS_arm)" LDFLAGS="$(LDFLAGS_arm)" CARGO_BUILD_TARGET="$(CARGO_TARGET_arm)"
-SUBMAKE_intel := $(SUBMAKE_base) DESTDIR="$(DESTDIR_intel)" CFLAGS="$(CFLAGS_intel)" LDFLAGS="$(LDFLAGS_intel)" CARGO_BUILD_TARGET="$(CARGO_TARGET_intel)"
+SUBMAKE := $(SUBMAKE_base) DESTDIR="$(DESTDIR_arm)" CFLAGS="$(CFLAGS)" LDFLAGS="$(LDFLAGS)"
 
 XML_CATALOG_FILES := $(shell bin/find-file /usr/local/etc/xml/catalog /opt/homebrew/etc/xml/catalog)
 
@@ -45,8 +37,8 @@ XML_CATALOG_FILES := $(shell bin/find-file /usr/local/etc/xml/catalog /opt/homeb
 
 package: git-$(VERSION).pkg
 install: $(BUILD_DIR)/osx-installed
-stage: $(BUILD_DIR)/osx-staged-arm $(BUILD_DIR)/osx-staged-intel
-compile: $(BUILD_DIR)/osx-compiled-arm $(BUILD_DIR)/osx-compiled-intel
+stage: $(BUILD_DIR)/osx-staged-arm
+compile: $(BUILD_DIR)/osx-compiled-arm
 download: build/git-$(VERSION).tar.gz build/git-manpages-$(VERSION).tar.gz
 ifdef INCLUDE_SUBTREE_DOC
 tmp/setup-verified:
@@ -58,7 +50,7 @@ else
 setup:
 endif
 clean:
-	rm -rf "$(BUILD_DIR)"/git-*/ "$(DESTDIR_arm)" "$(DESTDIR_intel)" "git-$(VERSION).pkg"
+	rm -rf "$(BUILD_DIR)"/git-*/ "$(DESTDIR_arm)" "git-$(VERSION).pkg"
 	$(SUDO) rm -rf "$(DESTDIR)"
 	rm -f "$(BUILD_DIR)"/osx-compiled-* "$(BUILD_DIR)"/osx-staged-* "$(BUILD_DIR)"/osx-installed*
 
@@ -68,8 +60,7 @@ vars:
 	# DESTDIR = $(DESTDIR)
 	# GIT_PREFIX = $(GIT_PREFIX)
 	# BUILD_DIR = $(BUILD_DIR)
-	# SUBMAKE_arm = $(SUBMAKE_arm)
-	# SUBMAKE_intel = $(SUBMAKE_intel)
+	# SUBMAKE = $(SUBMAKE)
 	# INCLUDE_GUI = $(INCLUDE_GUI)
 	# INCLUDE_SUBTREE_DOC = $(INCLUDE_SUBTREE_DOC)
 	# XML_CATALOG_FILES = $(XML_CATALOG_FILES)
@@ -92,19 +83,19 @@ $(BUILD_DIR)/git-%/Makefile: $(BUILD_DIR)/git-$(VERSION).tar.gz
 ##### Compile #####
 
 $(BUILD_DIR)/git-%/osx-built-git: $(BUILD_DIR)/git-%/Makefile
-	cd "$(BUILD_DIR)/git-$*"; $(SUBMAKE_${*}) -j 3 all strip
+	cd "$(BUILD_DIR)/git-$*"; $(SUBMAKE) -j 3 all strip
 	touch "$@"
 
 $(BUILD_DIR)/git-%/osx-built-keychain: $(BUILD_DIR)/git-%/Makefile
-	cd "$(BUILD_DIR)/git-$*/contrib/credential/osxkeychain"; $(SUBMAKE_${*}) CFLAGS="$(CFLAGS_${*}) -g -O2"
+	cd "$(BUILD_DIR)/git-$*/contrib/credential/osxkeychain"; $(SUBMAKE) CFLAGS="$(CFLAGS) -g -O2"
 	touch "$@"
 
 ifdef INCLUDE_SUBTREE_DOC
 $(BUILD_DIR)/git-%/osx-built-subtree: $(BUILD_DIR)/git-%/Makefile | setup
-	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE_${*}) XML_CATALOG_FILES="$(XML_CATALOG_FILES)" all git-subtree.1
+	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE) XML_CATALOG_FILES="$(XML_CATALOG_FILES)" all git-subtree.1
 else
 $(BUILD_DIR)/git-%/osx-built-subtree: $(BUILD_DIR)/git-%/Makefile
-	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE_${*}) all
+	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE) all
 endif
 	touch "$@"
 
@@ -116,7 +107,7 @@ $(BUILD_DIR)/osx-compiled-%: $(BUILD_DIR)/git-%/osx-built-git $(BUILD_DIR)/git-%
 
 $(BUILD_DIR)/git-%/osx-staged-git: $(BUILD_DIR)/git-%/osx-built-git
 	mkdir -p "$(DESTDIR_${*})$(GIT_PREFIX)"
-	cd "$(BUILD_DIR)/git-$*"; $(SUBMAKE_${*}) INSTALL_SYMLINKS=1 install
+	cd "$(BUILD_DIR)/git-$*"; $(SUBMAKE) INSTALL_SYMLINKS=1 install
 	touch "$@"
 
 $(BUILD_DIR)/git-%/osx-staged-keychain: $(BUILD_DIR)/git-%/osx-built-keychain
@@ -127,9 +118,9 @@ $(BUILD_DIR)/git-%/osx-staged-keychain: $(BUILD_DIR)/git-%/osx-built-keychain
 $(BUILD_DIR)/git-%/osx-staged-subtree: $(BUILD_DIR)/git-%/osx-built-subtree
 	mkdir -p "$(DESTDIR_${*})$(GIT_PREFIX)"
 ifdef INCLUDE_SUBTREE_DOC
-	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE_${*}) XML_CATALOG_FILES="$(XML_CATALOG_FILES)" install install-man
+	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE) XML_CATALOG_FILES="$(XML_CATALOG_FILES)" install install-man
 else
-	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE_${*}) install
+	cd "$(BUILD_DIR)/git-$*/contrib/subtree"; $(SUBMAKE) install
 endif
 	touch "$@"
 
@@ -139,7 +130,7 @@ $(BUILD_DIR)/osx-staged-%: $(BUILD_DIR)/git-%/osx-staged-git $(BUILD_DIR)/git-%/
 
 ##### Install #####
 
-$(BUILD_DIR)/osx-installed-bin: $(BUILD_DIR)/osx-staged-arm $(BUILD_DIR)/osx-staged-intel
+$(BUILD_DIR)/osx-installed-bin: $(BUILD_DIR)/osx-staged-arm
 	mkdir -p "$(DESTDIR)$(GIT_PREFIX)"
 	# recreate directory structure and add in all symlinks
 	cd "$(DESTDIR_arm)"; find . -type d -exec mkdir -p "$(DESTDIR)/{}" \;
@@ -147,12 +138,10 @@ $(BUILD_DIR)/osx-installed-bin: $(BUILD_DIR)/osx-staged-arm $(BUILD_DIR)/osx-sta
 ifdef CERTIFICATE
 	# sign executables
 #	security unlock-keychain login.keychain  - unsure if necessary (or if it even works), instead using broad permissions in Keychain Access for now
-	cd "$(DESTDIR_arm)";   find . -type f -exec bash -c '[[ "$$(file -b "{}")" == "Mach-O 64-bit executable arm64" ]]' \;  -exec codesign --force --options runtime --sign "$(CERTIFICATE)" "{}" \;
-	cd "$(DESTDIR_intel)"; find . -type f -exec bash -c '[[ "$$(file -b "{}")" == "Mach-O 64-bit executable x86_64" ]]' \; -exec codesign --force --options runtime --sign "$(CERTIFICATE)" "{}" \;
+	cd "$(DESTDIR_arm)"; find . -type f -exec bash -c '[[ "$$(file -b "{}")" == "Mach-O 64-bit executable arm64" ]]' \;  -exec codesign --force --options runtime --sign "$(CERTIFICATE)" "{}" \;
 endif
-	# look at all other files: copy non-executables, merge executables
-	cd "$(DESTDIR_arm)"; find . -type f -exec bash -c '[[ "$$(file -b "{}")" == "Mach-O 64-bit executable arm64" ]]' \; -exec lipo -create -output "$(DESTDIR)/{}" "$(DESTDIR_intel)/{}" "$(DESTDIR_arm)/{}" \;
-	cd "$(DESTDIR_arm)"; find . -type f -exec bash -c '[[ "$$(file -b "{}")" != "Mach-O 64-bit executable arm64" ]]' \; -exec cp -f "$(DESTDIR_arm)/{}" "$(DESTDIR)/{}" \;
+#   copy all files
+	cd "$(DESTDIR_arm)"; find . -type f -exec cp -f "$(DESTDIR_arm)/{}" "$(DESTDIR)/{}" \;
 	touch "$@"
 
 $(BUILD_DIR)/osx-installed-man: build/git-manpages-$(VERSION).tar.gz
